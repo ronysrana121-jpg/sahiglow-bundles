@@ -1,58 +1,27 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
-
 client_id = "70d54511cff1cbd280c9c53b3fbbe481"
 name = "Sahiglow Volume Bundles"
-application_url = "https://sahiglow-app.onrender.com"
+handle = "sahiglow-volume-bundles"
+application_url = "https://sahiglow-bundles-production.up.railway.app"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-
-[webhooks]
-api_version = "2026-04"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
+dev_store_url = "your-store-name.myshopify.com"
 
 [access_scopes]
 scopes = "write_products,write_metaobjects,write_discounts"
+
 [auth]
 redirect_urls = [
-  "https://sahiglow-app.onrender.com/auth/callback",
-  "https://sahiglow-app.onrender.com/auth/shopify/callback",
-  "https://sahiglow-app.onrender.com/api/auth/callback"
+  "https://sahiglow-bundles-production.up.railway.app/auth/callback",
+  "https://sahiglow-bundles-production.up.railway.app/auth/shopify/callback",
+  "https://sahiglow-bundles-production.up.railway.app/api/auth/callback"
 ]
 
-[proxy]
-url = "https://sahiglow-app.onrender.com/app/proxy"
+[webhooks]
+api_version = "2024-01"
+
+[app_proxy]
+url = "https://sahiglow-bundles-production.up.railway.app/app/proxy"
 subpath = "sahiglow-proxy"
 prefix = "apps"
-
-[product.metafields.app.demo_info]
-type = "single_line_text_field"
-name = "Demo Source Info"
-description = "Tracks products created by the Shopify app template for development"
-
-  [product.metafields.app.demo_info.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example]
-name = "Example"
-description = "An example metaobject definition created by this template"
-
-  [metaobjects.app.example.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.example.fields.description]
-name = "Description"
-type = "multi_line_text_field"
