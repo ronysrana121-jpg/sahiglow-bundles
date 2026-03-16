@@ -1,3 +1,4 @@
+import { json } from "@react-router/node";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 
@@ -5,42 +6,36 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
 
-  if (!shop) {
-    return new Response(JSON.stringify({ error: "Missing shop parameter" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  if (!shop) return json({ error: "Missing shop" }, { status: 400 });
 
-  // Fetch tiers for this specific shop from Prisma
   const tiers = await db.volumeTier.findMany({
-    where: { shop: shop },
-    orderBy: { quantity: 'asc' }
+    where: { shop },
+    orderBy: { quantity: "asc" },
   });
 
-  // Just return the data object directly in v7
-  return { tiers };
+  return json({ tiers });
 };
 
-// This handles creating the discount automatically when they click "Add to Cart"
+// This "Action" will create the discount code when the button is clicked
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.public.appProxy(request);
+  const { admin, session } = await authenticate.public.appProxy(request);
   const formData = await request.formData();
   const discountPercent = formData.get("discount");
+  const qty = formData.get("quantity");
 
-  // Create a basic "Price Rule" discount code via GraphQL
+  // Generate a unique code like: SAHIGLOW-10-OFF-1234
+  const code = `SAHI-${discountPercent}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+
+  // Use Shopify GraphQL to create a "Basic Discount"
   const response = await admin.graphql(
     `#graphql
     mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
       discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
-        codeDiscountNode {
-          codeDiscount {
-            ... on DiscountCodeBasic {
-              codes(first: 1) {
-                nodes {
-                  code
-                }
-              }
+        discountCode {
+          id
+          codes(first: 1) {
+            nodes {
+              code
             }
           }
         }
@@ -53,27 +48,26 @@ export const action = async ({ request }) => {
     {
       variables: {
         basicCodeDiscount: {
-          title: `Volume Save ${discountPercent}%`,
-          code: `SAVE${discountPercent}-${Math.floor(Math.random() * 1000)}`,
+          title: `Sahiglow Bundle - ${discountPercent}% Off`,
+          code: code,
           startsAt: new Date().toISOString(),
+          endsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // Valid for 1 hour
           customerSelection: { all: true },
           customerGets: {
             value: { percentage: parseFloat(discountPercent) / 100 },
             items: { all: true }
           },
-          appliesOncePerCustomer: false
-        }
-      }
+          appliesOncePerCustomer: true,
+          minimumRequirement: {
+            quantity: { greaterThanOrEqualToQuantity: qty }
+          }
+        },
+      },
     }
   );
 
-  const data = await response.json();
-  
-  if (data.errors || data.data.discountCodeBasicCreate.userErrors.length > 0) {
-     return { error: "Discount creation failed" };
-  }
+  const responseJson = await response.json();
+  const generatedCode = responseJson.data.discountCodeBasicCreate.discountCode.codes.nodes[0].code;
 
-  const code = data.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].code;
-
-  return { discountCode: code };
+  return json({ code: generatedCode });
 };
