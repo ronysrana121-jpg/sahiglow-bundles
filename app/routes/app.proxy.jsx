@@ -52,11 +52,11 @@ export const action = async ({ request }) => {
             },
             appliesOncePerCustomer: true,
             minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: String(qty) } },
-            // BLOCK OTHER DISCOUNTS: Set all to false
+            // RE-ENABLED: This allows multiple different bundles to work in one cart
             combinesWith: {
-              orderDiscounts: false,
-              productDiscounts: false,
-              shippingDiscounts: false
+              orderDiscounts: true,
+              productDiscounts: true,
+              shippingDiscounts: true
             }
           },
         },
@@ -64,10 +64,7 @@ export const action = async ({ request }) => {
     );
 
     const responseJson = await response.json();
-    if (responseJson.data?.discountCodeBasicCreate?.userErrors?.length > 0) {
-        console.error(responseJson.data.discountCodeBasicCreate.userErrors);
-        throw new Error("GraphQL Error");
-    }
+    if (responseJson.data?.discountCodeBasicCreate?.userErrors?.length > 0) throw new Error("GraphQL Error");
 
     const generatedCode = responseJson.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].code;
     return Response.json({ code: generatedCode });
