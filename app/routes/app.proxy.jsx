@@ -52,7 +52,6 @@ export const action = async ({ request }) => {
             },
             appliesOncePerCustomer: true,
             minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: String(qty) } },
-            // RE-ENABLED: This allows multiple different bundles to work in one cart
             combinesWith: {
               orderDiscounts: true,
               productDiscounts: true,

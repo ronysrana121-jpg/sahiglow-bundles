@@ -183,7 +183,7 @@
           const formData = new FormData();
           formData.append("discount", disc);
           formData.append("quantity", qty);
-          formData.append("productId", "{{ product.id }}");
+          formData.append("productId", "{{ product.id }}"); // Sends specific product ID
 
           const discRes = await fetch('/apps/sahiglow-proxy', { 
             method: 'POST', 
@@ -196,6 +196,7 @@
           }
 
           const discData = await discRes.json();
+          // Apply the specific product discount code
           await fetch(`/discount/${discData.code}`);
         }
 
@@ -209,7 +210,7 @@
 
         btn.innerText = "✓ ADDED";
         document.getElementById('sahiglow-success-msg').style.display = "block";
-        setTimeout(() => { location.reload(); }, 1000);
+        setTimeout(() => { window.location.href = '/cart'; }, 1000);
 
       } catch (err) {
         console.error("Sahiglow AddToCart Error:", err);
@@ -221,6 +222,25 @@
   }
 
   loadTiers();
+
+  // Coupon Blocker (Best Effort to hide the discount input box if Sahiglow code is active)
+  if (window.location.href.includes('checkout')) {
+    const checkSahiglow = setInterval(() => {
+      const tags = document.querySelectorAll('.reduction-code__text, .tags-list .tag__text');
+      let hasSahi = false;
+      tags.forEach(tag => { 
+        if(tag.innerText.includes('SAHI-')) hasSahi = true; 
+      });
+
+      if (hasSahi) {
+        // Tries to hide the discount input field container for standard themes
+        const discountField = document.querySelector('.order-summary__section--discount, #checkout_reduction_code_mobile, [data-reduction-form="update"]'); 
+        if (discountField) discountField.style.display = 'none';
+        
+        clearInterval(checkSahiglow);
+      }
+    }, 500);
+  }
 </script>
 
 <style>
