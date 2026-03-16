@@ -18,56 +18,67 @@ export const loader = async ({ request }) => {
 
 // This "Action" will create the discount code when the button is clicked
 export const action = async ({ request }) => {
-  const { admin, session } = await authenticate.public.appProxy(request);
-  const formData = await request.formData();
-  const discountPercent = formData.get("discount");
-  const qty = formData.get("quantity");
-
-  // Generate a unique code like: SAHIGLOW-10-OFF-1234
-  const code = `SAHI-${discountPercent}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-
-  // Use Shopify GraphQL to create a "Basic Discount"
-  const response = await admin.graphql(
-    `#graphql
-    mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
-      discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
-        discountCode {
-          id
-          codes(first: 1) {
-            nodes {
-              code
-            }
-          }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        basicCodeDiscount: {
-          title: `Sahiglow Bundle - ${discountPercent}% Off`,
-          code: code,
-          startsAt: new Date().toISOString(),
-          endsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // Valid for 1 hour
-          customerSelection: { all: true },
-          customerGets: {
-            value: { percentage: parseFloat(discountPercent) / 100 },
-            items: { all: true }
-          },
-          appliesOncePerCustomer: true,
-          minimumRequirement: {
-            quantity: { greaterThanOrEqualToQuantity: qty }
-          }
-        },
-      },
+  console.log("🚀 --- PROXY POST REQUEST TRIGGERED ---");
+  
+  try {
+    const { admin, session } = await authenticate.public.appProxy(request);
+    
+    if (!admin) {
+      console.error("❌ Authentication Failed: Shopify blocked the proxy request.");
+      return json({ error: "Unauthorized App Proxy" }, { status: 401 });
     }
-  );
 
-  const responseJson = await response.json();
-  const generatedCode = responseJson.data.discountCodeBasicCreate.discountCode.codes.nodes[0].code;
+    const formData = await request.formData();
+    const discountPercent = formData.get("discount");
+    const qty = formData.get("quantity");
+    console.log(`📦 Requesting Discount: ${discountPercent}% for ${qty} items`);
 
-  return json({ code: generatedCode });
+    const code = `SAHI-${discountPercent}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+
+    const response = await admin.graphql(
+      `#graphql
+      mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+        discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+          discountCode {
+            id
+            codes(first: 1) { nodes { code } }
+          }
+          userErrors { field message }
+        }
+      }`,
+      {
+        variables: {
+          basicCodeDiscount: {
+            title: `Sahiglow Bundle - ${discountPercent}% Off`,
+            code: code,
+            startsAt: new Date().toISOString(),
+            endsAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            customerSelection: { all: true },
+            customerGets: {
+              value: { percentage: parseFloat(discountPercent) / 100 },
+              items: { all: true }
+            },
+            appliesOncePerCustomer: true,
+            minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: parseInt(qty) } }
+          },
+        },
+      }
+    );
+
+    const responseJson = await response.json();
+    
+    if (responseJson.data?.discountCodeBasicCreate?.userErrors?.length > 0) {
+      console.error("❌ Shopify GraphQL Error:", JSON.stringify(responseJson.data.discountCodeBasicCreate.userErrors));
+      return json({ error: "Failed to create discount" }, { status: 400 });
+    }
+
+    const generatedCode = responseJson.data.discountCodeBasicCreate.discountCode.codes.nodes[0].code;
+    console.log(`✅ Successfully generated code: ${generatedCode}`);
+
+    return json({ code: generatedCode });
+
+  } catch (error) {
+    console.error("💥 MASSIVE SERVER ERROR:", error.message);
+    return json({ error: "Internal Server Error" }, { status: 500 });
+  }
 };
