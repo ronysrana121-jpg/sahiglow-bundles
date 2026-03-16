@@ -15,7 +15,6 @@ export const loader = async ({ request }) => {
   return Response.json({ tiers });
 };
 
-// This "Action" will create the discount code when the button is clicked
 export const action = async ({ request }) => {
   console.log("🚀 --- PROXY POST REQUEST TRIGGERED ---");
   
@@ -34,7 +33,6 @@ export const action = async ({ request }) => {
 
     const code = `SAHI-${discountPercent}-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    // Updated GraphQL structure for Shopify's newer API versions
     const response = await admin.graphql(
       `#graphql
       mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
@@ -68,7 +66,8 @@ export const action = async ({ request }) => {
               items: { all: true }
             },
             appliesOncePerCustomer: true,
-            minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: parseInt(qty) } }
+            // FIX: Converted qty to a string
+            minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: String(qty) } }
           },
         },
       }
@@ -81,7 +80,6 @@ export const action = async ({ request }) => {
       return Response.json({ error: "Failed to create discount" }, { status: 400 });
     }
 
-    // Updated extraction path to match the new GraphQL payload
     const generatedCode = responseJson.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].code;
     console.log(`✅ Successfully generated code: ${generatedCode}`);
 
