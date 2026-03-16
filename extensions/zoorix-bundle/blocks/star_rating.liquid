@@ -1,0 +1,111 @@
+<div class="sahiglow-volume-widget" id="sahiglow-app">
+  <div class="sahiglow-widget-header">
+    <h3>Buy More & Save 💰</h3>
+  </div>
+  
+  <div id="sahiglow-status" style="text-align: center; color: #666; font-size: 12px; margin-bottom: 10px;">
+    Connecting to database...
+  </div>
+
+  <div id="sahiglow-tiers-container" class="sahiglow-options">
+    </div>
+  
+  <button class="sahiglow-add-btn" id="sahiglow-submit" type="button" style="display: none;">ADD BUNDLE TO CART</button>
+</div>
+
+<script>
+  async function loadTiers() {
+    const shop = "{{ shop.permanent_domain }}";
+    const status = document.getElementById('sahiglow-status');
+    const productPrice = {{ product.price }};
+    
+    try {
+      console.log("Fetching from: /apps/sahiglow-proxy?shop=" + shop);
+      const response = await fetch(`/apps/sahiglow-proxy?shop=${shop}`);
+      
+      if (!response.ok) {
+        throw new Error("Proxy error: " + response.status);
+      }
+
+      const data = await response.json();
+      console.log("Database Data:", data);
+      
+      if (data.tiers && data.tiers.length > 0) {
+        status.style.display = 'none';
+        document.getElementById('sahiglow-submit').style.display = 'block';
+        
+        const container = document.getElementById('sahiglow-tiers-container');
+        let html = `
+          <label class="sahiglow-option active-border">
+            <input type="radio" name="sahiglow-bundle" value="1" data-qty="1" checked>
+            <div class="sahiglow-option-content">
+              <span>Buy 1 item</span>
+              <span>${formatMoney(productPrice)}</span>
+            </div>
+          </label>
+        `;
+
+        data.tiers.forEach(tier => {
+          const qty = parseInt(tier.quantity);
+          const disc = parseInt(tier.discount);
+          const totalPrice = (productPrice * qty) * (1 - disc / 100);
+          
+          html += `
+            <label class="sahiglow-option">
+              <input type="radio" name="sahiglow-bundle" value="${qty}" data-qty="${qty}">
+              <div class="sahiglow-option-content">
+                <span>Buy ${qty} items ${tier.badge ? `<span class="sahiglow-badge">${tier.badge}</span>` : ''}</span>
+                <span>${formatMoney(totalPrice)}</span>
+              </div>
+            </label>
+          `;
+        });
+        
+        container.innerHTML = html;
+        setupListeners();
+      } else {
+        status.innerText = "No bundle offers saved in dashboard yet.";
+      }
+    } catch (e) { 
+      console.error("Sahiglow Error:", e);
+      status.innerText = "Connection failed. Check App Proxy settings.";
+      status.style.color = "red";
+    }
+  }
+
+  function formatMoney(cents) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: '{{ cart.currency.iso_code }}' }).format(cents / 100);
+  }
+
+  function setupListeners() {
+    document.querySelectorAll('.sahiglow-option').forEach(opt => {
+      opt.addEventListener('click', function() {
+        document.querySelectorAll('.sahiglow-option').forEach(el => el.classList.remove('active-border'));
+        this.classList.add('active-border');
+        this.querySelector('input').checked = true;
+      });
+    });
+  }
+
+  loadTiers();
+</script>
+
+<style>
+  .sahiglow-volume-widget { border: 2px solid #e1e3e5; border-radius: 8px; padding: 16px; margin: 15px 0; background: #fff; }
+  .sahiglow-widget-header h3 { margin: 0 0 15px 0; font-size: 17px; text-align: center; font-weight: bold; }
+  .sahiglow-options { display: flex; flex-direction: column; gap: 10px; }
+  .sahiglow-option { display: flex; align-items: center; border: 1px solid #d2d5d8; padding: 12px; border-radius: 6px; cursor: pointer; }
+  .sahiglow-option.active-border { border: 2px solid #008060; background: #f3fcf8; }
+  .sahiglow-option-content { display: flex; justify-content: space-between; width: 100%; padding-left: 10px; align-items: center; }
+  .sahiglow-badge { font-size: 11px; background: #ffea8a; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+  .sahiglow-add-btn { width: 100%; margin-top: 15px; background: #008060; color: #fff; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+</style>
+
+{% schema %}
+{
+  "name": "Volume Bundle Widget",
+  "target": "section",
+  "templates": ["product"],
+  "settings": []
+}
+{% endschema %}
