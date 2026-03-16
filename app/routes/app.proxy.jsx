@@ -1,4 +1,3 @@
-import { json } from "@react-router/node";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 
@@ -6,14 +5,14 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
 
-  if (!shop) return json({ error: "Missing shop" }, { status: 400 });
+  if (!shop) return Response.json({ error: "Missing shop" }, { status: 400 });
 
   const tiers = await db.volumeTier.findMany({
     where: { shop },
     orderBy: { quantity: "asc" },
   });
 
-  return json({ tiers });
+  return Response.json({ tiers });
 };
 
 // This "Action" will create the discount code when the button is clicked
@@ -21,11 +20,11 @@ export const action = async ({ request }) => {
   console.log("🚀 --- PROXY POST REQUEST TRIGGERED ---");
   
   try {
-    const { admin, session } = await authenticate.public.appProxy(request);
+    const { admin } = await authenticate.public.appProxy(request);
     
     if (!admin) {
       console.error("❌ Authentication Failed: Shopify blocked the proxy request.");
-      return json({ error: "Unauthorized App Proxy" }, { status: 401 });
+      return Response.json({ error: "Unauthorized App Proxy" }, { status: 401 });
     }
 
     const formData = await request.formData();
@@ -69,16 +68,16 @@ export const action = async ({ request }) => {
     
     if (responseJson.data?.discountCodeBasicCreate?.userErrors?.length > 0) {
       console.error("❌ Shopify GraphQL Error:", JSON.stringify(responseJson.data.discountCodeBasicCreate.userErrors));
-      return json({ error: "Failed to create discount" }, { status: 400 });
+      return Response.json({ error: "Failed to create discount" }, { status: 400 });
     }
 
     const generatedCode = responseJson.data.discountCodeBasicCreate.discountCode.codes.nodes[0].code;
     console.log(`✅ Successfully generated code: ${generatedCode}`);
 
-    return json({ code: generatedCode });
+    return Response.json({ code: generatedCode });
 
   } catch (error) {
     console.error("💥 MASSIVE SERVER ERROR:", error.message);
-    return json({ error: "Internal Server Error" }, { status: 500 });
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
   }
 };
