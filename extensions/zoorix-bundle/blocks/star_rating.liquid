@@ -18,7 +18,7 @@
         Hurry! Only <span id="sahiglow-stock-count">7</span> bundles left at this price
       </div>
       <div class="sahiglow-inventory-bar-bg">
-        <div id="sahiglow-inventory-fill" class="sahiglow-inventory-bar-fill" style="background: {{ border_color }};"></div>
+        <div id="sahiglow-inventory-fill" class="sahiglow-inventory-bar-fill" style="background: {{ border_color }}; width: 35%;"></div>
       </div>
     </div>
 
@@ -33,6 +33,10 @@
     </div>
   </div>
   
+  <div id="sahiglow-status" style="text-align: center; color: {{ text_color }}; opacity: 0.7; font-size: 12px; margin: 10px 0;">
+    Loading your Sahiglow deals...
+  </div>
+
   <div id="sahiglow-tiers-container" class="sahiglow-options"></div>
   
   <div id="sahiglow-success-msg" style="display: none; text-align: center; color: #28a745; font-weight: bold; margin-top: 10px; font-size: 14px;">
@@ -49,17 +53,7 @@
   function startScarcityEffects() {
     const timerElement = document.getElementById('sahiglow-timer-clock');
     const visitorCount = document.getElementById('sahiglow-visitor-count');
-    const stockCount = document.getElementById('sahiglow-stock-count');
-    const stockFill = document.getElementById('sahiglow-inventory-fill');
-    
-    // Set Scarcity Values
     visitorCount.innerText = Math.floor(Math.random() * (35 - 12 + 1)) + 12;
-    const randomStock = Math.floor(Math.random() * (9 - 4 + 1)) + 4;
-    stockCount.innerText = randomStock;
-    
-    // Set Bar Width (e.g., 7 left out of a fake 20)
-    const fillPercent = (randomStock / 20) * 100;
-    stockFill.style.width = fillPercent + "%";
 
     function updateTimer() {
       const now = new Date();
@@ -78,14 +72,17 @@
 
   async function loadTiers() {
     const shop = "{{ shop.permanent_domain }}";
+    const status = document.getElementById('sahiglow-status');
     const productPrice = {{ product.price }};
     const compareAtPrice = {{ product.compare_at_price | default: 0 }};
     
     try {
       const response = await fetch(`/apps/sahiglow-proxy?shop=${shop}`);
+      if (!response.ok) throw new Error("Proxy connection failed.");
       const data = await response.json();
       
       if (data.tiers && data.tiers.length > 0) {
+        status.style.display = 'none';
         const container = document.getElementById('sahiglow-tiers-container');
         
         let buy1Html = `
@@ -125,12 +122,17 @@
         container.innerHTML = buy1Html + tiersHtml;
         setupListeners();
         startScarcityEffects();
+      } else {
+        status.innerText = "Please add tiers in your Sahiglow App Dashboard.";
       }
-    } catch (e) { console.error("Sahiglow Proxy Error"); }
+    } catch (e) { 
+      status.innerText = "Database connection error. Check App Proxy settings.";
+      console.error(e);
+    }
   }
 
   function formatMoney(cents) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: '{{ cart.currency.iso_code }}' }).format(cents / 100);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(cents / 100);
   }
 
   function setupListeners() {
@@ -163,11 +165,17 @@
     document.getElementById('sahiglow-submit').addEventListener('click', async function() {
       const btn = this;
       const selectedInput = document.querySelector('input[name="sahiglow-bundle"]:checked');
+      
+      if(!selectedInput) {
+        alert("Please select a bundle first!");
+        return;
+      }
+
       const qty = parseInt(selectedInput.dataset.qty);
       const disc = parseInt(selectedInput.dataset.disc);
       const variantId = "{{ product.selected_or_first_available_variant.id }}";
       
-      btn.innerText = "CLAIMING OFFER...";
+      btn.innerText = "PROCESSING...";
       btn.disabled = true;
 
       try {
@@ -175,19 +183,40 @@
           const formData = new FormData();
           formData.append("discount", disc);
           formData.append("quantity", qty);
-          const discRes = await fetch('/apps/sahiglow-proxy', { method: 'POST', body: formData });
+          formData.append("productId", "{{ product.id }}");
+
+          const discRes = await fetch('/apps/sahiglow-proxy', { 
+            method: 'POST', 
+            body: formData 
+          });
+
+          if (!discRes.ok) {
+            const errorBody = await discRes.text();
+            throw new Error(`Discount Proxy Error: ${discRes.status} - ${errorBody}`);
+          }
+
           const discData = await discRes.json();
           await fetch(`/discount/${discData.code}`);
         }
-        await fetch('/cart/add.js', {
+
+        const cartRes = await fetch('/cart/add.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: [{ id: variantId, quantity: qty }] })
         });
+
+        if (!cartRes.ok) throw new Error("Could not add items to cart.");
+
         btn.innerText = "✓ ADDED";
         document.getElementById('sahiglow-success-msg').style.display = "block";
-        setTimeout(() => { location.reload(); }, 1200);
-      } catch (err) { btn.innerText = "RETRY"; btn.disabled = false; }
+        setTimeout(() => { location.reload(); }, 1000);
+
+      } catch (err) {
+        console.error("Sahiglow AddToCart Error:", err);
+        alert("⚠️ App Error: " + err.message);
+        btn.innerText = "RETRY";
+        btn.disabled = false;
+      }
     });
   }
 
@@ -197,27 +226,22 @@
 <style>
   .sahiglow-volume-widget { border: 2px solid; border-radius: 12px; padding: 20px; margin: 20px 0; font-family: sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
   .sahiglow-widget-header h3 { margin: 0 0 5px 0; font-size: 19px; text-align: center; font-family: serif; font-weight: bold; }
-  
-  /* Inventory Scarcity Bar */
   .sahiglow-inventory-container { margin-bottom: 15px; }
   .sahiglow-inventory-text { font-size: 11px; font-weight: bold; text-align: center; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
   .sahiglow-inventory-bar-bg { background: #eee; height: 6px; border-radius: 10px; overflow: hidden; width: 80%; margin: 0 auto; }
   .sahiglow-inventory-bar-fill { height: 100%; border-radius: 10px; transition: width 1s ease-in-out; }
-
   .sahiglow-timer-container { font-size: 12px; text-align: center; padding: 6px; border-radius: 6px; margin-bottom: 15px; background: rgba(114, 0, 38, 0.03); display: flex; align-items: center; justify-content: center; gap: 8px; }
   .timer-icon { animation: pulse 1.5s infinite; }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-  
   .sahiglow-options { display: flex; flex-direction: column; gap: 10px; }
   .sahiglow-option { display: flex; align-items: center; border: 1px solid #e1e3e5; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.2s; background: #fff; }
   .sahiglow-option.active-border { border-width: 2px !important; border-color: {{ border_color }} !important; background: #fffafb; }
   .sahiglow-option-content { display: flex; justify-content: space-between; width: 100%; padding-left: 10px; font-weight: 600; align-items: center; font-size: 14px; }
-  
   .sahiglow-prices { display: flex; align-items: center; gap: 6px; }
   .sahiglow-compare-price { text-decoration: line-through; color: #999; font-size: 11px; font-weight: 400; }
   .sahiglow-current-price { color: {{ border_color }}; }
   .sahiglow-badge { font-size: 8px; padding: 2px 6px; border-radius: 50px; font-weight: 800; margin-left: 4px; text-transform: uppercase; }
-  .sahiglow-add-btn { width: 100%; margin-top: 15px; border: none; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+  .sahiglow-add-btn { width: 100%; margin-top: 15px; border: none; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
 </style>
 
 {% schema %}

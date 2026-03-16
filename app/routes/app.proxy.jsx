@@ -29,9 +29,12 @@ export const action = async ({ request }) => {
     const formData = await request.formData();
     const discountPercent = formData.get("discount");
     const qty = formData.get("quantity");
-    console.log(`📦 Requesting Discount: ${discountPercent}% for ${qty} items`);
+    const productId = formData.get("productId");
+
+    console.log(`📦 Requesting Discount: ${discountPercent}% for ${qty} items of Product ${productId}`);
 
     const code = `SAHI-${discountPercent}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    const productGid = `gid://shopify/Product/${productId}`;
 
     const response = await admin.graphql(
       `#graphql
@@ -63,10 +66,9 @@ export const action = async ({ request }) => {
             customerSelection: { all: true },
             customerGets: {
               value: { percentage: parseFloat(discountPercent) / 100 },
-              items: { all: true }
+              items: { products: { productsToAdd: [productGid] } }
             },
             appliesOncePerCustomer: true,
-            // FIX: Converted qty to a string
             minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: String(qty) } }
           },
         },
